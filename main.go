@@ -1,53 +1,54 @@
 package main
 
 import (
-	// "fmt"
-	// "math/rand"
-  //
-	// randomForest "github.com/malaschitz/randomForest"
-	"strconv"
+	"fmt"
+	"math/rand"
+
+	randomforest "github.com/malaschitz/randomForest"
 	"github.com/petar/GoMNIST"
 )
 
 func main() {
-	// Read both the MNIST training and testing data using GoMNIST
-	// train and test are assigned to pointers to Set types
-	// where set is defined within the package GoMNIST as:
-	// Set {
-	//   NRow int
-	//   NCol nit
-	//   Images []RawImage , RawImage is a []byte
-	//   Labels []Label , Label is a uint8 , digit label 0 to 9
-	// }
-	train, _, err := GoMNIST.Load("./data")
-
+	rand.Seed(1)
+	TREES := 1000
+	size := 60000
+	xsize := 28 * 28
+	labels, err := GoMNIST.ReadLabelFile("data/train-labels-idx1-ubyte.gz")
 	if err != nil {
 		panic(err)
 	}
-
-	ReshapeImageData(train)
-	// Outlier detection with isolated forest
-	// randomForest needs the data in the form [][]float64
-	// xData := [][]float64{}
-	// yData := []int{}
-	// forest := randomForest.Forest{}
-	// forest.Data = randomforest.ForestData{X: xData, Class: yData}
-	// replace 1000 with whatever number of values there are to compare
-	// forest.Train(1000)
-}
-
-// The images are stored as []byte, but randomForest.Forest needs [][]float64
-func ReshapeImageData(set *GoMNIST.Set) [][]float64 {
-	setObject := *set
-	images := setObject.Images
-	imageCount := len(setObject.Images)
-	reshapedData := [][]float64{}
-
-	for i := 0; i < imageCount; i++ {
-		imageDataAsFloat := strconv.ParseFloat(string(images[i]))
-
-		append(reshapedData, imageDataAsFloat)
+	_, _, imgs, err := GoMNIST.ReadImageFile("data/train-images-idx3-ubyte.gz")
+	if err != nil {
+		panic(err)
 	}
+	if len(labels) != size || len(imgs) != size {
+		panic("Wrong size")
+	}
+	//train
+	forest := randomforest.Forest{}
+	x := make([][]float64, size)
+	l := make([]int, size)
+	for i := 0; i < size; i++ {
+		x[i] = make([]float64, xsize)
+		for j := 0; j < xsize; j++ {
+			x[i][j] = float64(imgs[i][j])
+			l[i] = int(labels[i])
+		}
+	}
+	forest.Data = randomforest.ForestData{X: x, Class: l}
+	forest.MaxDepth = 30
+	forest.Train(TREES)
 
-	return reshapedData
+	//ISOLATION
+	// isolations, mean, stddev := forest.IsolationForest()
+	isolations, mean, stddev := forest.IsolationForest()
+	for i := range isolations {
+		fmt.Println(isolations[i])
+	}
+	// for i, d := range isolations {
+	// 	if d < (mean - 1.6*stddev) {
+	// 		fmt.Println(i, (d-mean)/stddev)
+	// 	}
+	// }
+	// //
 }
